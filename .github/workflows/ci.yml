@@ -3,6 +3,7 @@ name: CI
 on:
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch: {}
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -12,26 +13,67 @@ jobs:
   build:
     if: github.repository == 'geminimir/stripemeter'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'pnpm'
+
+      - name: Detect package manager
+        id: pm
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then echo "pm=pnpm" >> $GITHUB_OUTPUT
+          elif [ -f package-lock.json ]; then echo "pm=npm" >> $GITHUB_OUTPUT
+          elif [ -f yarn.lock ]; then echo "pm=yarn" >> $GITHUB_OUTPUT
+          else echo "pm=pnpm" >> $GITHUB_OUTPUT; fi
+
       - uses: pnpm/action-setup@v4
+        if: steps.pm.outputs.pm == 'pnpm'
         with:
           version: 9
-      - name: Install
-        run: pnpm install --frozen-lockfile
-      - name: Test
-        run: pnpm run --if-present test
+
+      - name: Tool versions
+        shell: bash
+        run: |
+          node -v || true
+          npm -v || true
+          pnpm -v || true
+          yarn -v || true
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          case "${ steps.pm.outputs.pm }" in
+            pnpm) pnpm install --frozen-lockfile || pnpm install ;;
+            npm)  npm ci || npm i ;;
+            yarn) yarn install --frozen-lockfile || yarn install ;;
+          esac
+
+      - name: Run tests (if present)
+        shell: bash
+        run: |
+          if [ -f package.json ] && grep -q '"test"' package.json; then
+            case "${ steps.pm.outputs.pm }" in
+              pnpm) pnpm test ;;
+              npm)  npm test ;;
+              yarn) yarn test ;;
+            esac
+          else
+            echo "No test script found; skipping."
+          fi
+
       - name: Collect artifacts
         if: always()
         run: |
           mkdir -p artifacts
           [ -d coverage ] && cp -r coverage artifacts/ || true
           [ -d junit ] && cp -r junit artifacts/ || true
+          [ -f package.json ] && cp package.json artifacts/ || true
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:

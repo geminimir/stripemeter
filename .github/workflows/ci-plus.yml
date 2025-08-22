@@ -1,0 +1,65 @@
+name: CI Plus (cache & artifacts)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  node:
+    if: ${{ hashFiles('**/package.json') != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+      - name: Restore npm cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/npm-shrinkwrap.json', '**/pnpm-lock.yaml', '**/yarn.lock') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+      - name: Install deps (npm if-present)
+        run: |
+          if [ -f package-lock.json ]; then npm ci; elif [ -f yarn.lock ]; then corepack enable && yarn install --frozen-lockfile; elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm i --frozen-lockfile; else echo "no lockfile"; fi
+      - name: Run tests (if present)
+        run: |
+          if [ -f package.json ]; then npm test --silent || (echo "::error::Tests failed"; exit 1); else echo "no package.json"; fi
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-logs
+          path: |
+            **/junit*.xml
+            **/test-results/**
+            npm-debug.log
+          if-no-files-found: ignore
+
+  python:
+    if: ${{ hashFiles('**/requirements.txt') != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          cache: 'pip'
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt || true
+      - name: Run pytest (if present)
+        run: |
+          if python -c "import pytest" 2>/dev/null; then pytest -q || (echo "::error::Pytests failed"; exit 1); else echo "pytest not found"; fi
+      - name: Upload pytest logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-logs
+          path: |
+            .pytest_cache/**
+            **/junit*.xml
+          if-no-files-found: ignore

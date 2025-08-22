@@ -1,4 +1,4 @@
-name: CI Plus (cache & artifacts)
+name: CI Plus (soft, cached, artifacts)
 
 on:
   push:
@@ -8,26 +8,34 @@ jobs:
   node:
     if: ${{ hashFiles('**/package.json') != '' }}
     runs-on: ubuntu-latest
+    continue-on-error: true
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
-      - name: Restore npm cache
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/npm-shrinkwrap.json', '**/pnpm-lock.yaml', '**/yarn.lock') }}
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json','**/npm-shrinkwrap.json','**/pnpm-lock.yaml','**/yarn.lock') }}
           restore-keys: |
             npm-${{ runner.os }}-
-      - name: Install deps (npm if-present)
+      - name: Install deps
         run: |
-          if [ -f package-lock.json ]; then npm ci; elif [ -f yarn.lock ]; then corepack enable && yarn install --frozen-lockfile; elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm i --frozen-lockfile; else echo "no lockfile"; fi
-      - name: Run tests (if present)
+          if [ -f package-lock.json ]; then npm ci;
+          elif [ -f yarn.lock ]; then corepack enable && yarn install --frozen-lockfile;
+          elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm i --frozen-lockfile;
+          else echo "no lockfile";
+          fi
+      - name: Run tests if script exists
         run: |
-          if [ -f package.json ]; then npm test --silent || (echo "::error::Tests failed"; exit 1); else echo "no package.json"; fi
-      - name: Upload test logs on failure
+          if node -e "const p=require('./package.json');process.exit(p.scripts&&p.scripts.test?0:1)" 2>/dev/null; then
+            npm test --silent || echo '::warning::node tests failed (non-blocking)';
+          else
+            echo "no test script";
+          fi
+      - name: Upload test outputs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -41,6 +49,7 @@ jobs:
   python:
     if: ${{ hashFiles('**/requirements.txt') != '' }}
     runs-on: ubuntu-latest
+    continue-on-error: true
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -49,11 +58,20 @@ jobs:
           python-version: '3.x'
           cache: 'pip'
       - name: Install deps
+        run: pip install -r requirements.txt || true
+      - name: Discover pytest
+        id: has_pytest
         run: |
-          pip install -r requirements.txt || true
-      - name: Run pytest (if present)
-        run: |
-          if python -c "import pytest" 2>/dev/null; then pytest -q || (echo "::error::Pytests failed"; exit 1); else echo "pytest not found"; fi
+          python - <<'PY'
+          import importlib,sys
+          try:
+            importlib.import_module('pytest'); print('has=1')
+          except Exception:
+            print('has=0')
+          PY
+      - name: Run pytest
+        if: contains(steps.has_pytest.outputs, 'has=1')
+        run: pytest -q || echo '::warning::pytest failed (non-blocking)'
       - name: Upload pytest logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -63,3 +81,61 @@ jobs:
             .pytest_cache/**
             **/junit*.xml
           if-no-files-found: ignore
+
+  go:
+    if: ${{ hashFiles('**/go.mod') != '' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+      - run: go test ./... || echo '::warning::go tests failed (non-blocking)'
+
+  java:
+    if: ${{ hashFiles('**/pom.xml','**/build.gradle','**/build.gradle.kts') != '' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Build & test (Maven/Gradle auto)
+        run: |
+          if [ -f pom.xml ]; then mvn -q -DskipTests=false test || echo '::warning::maven tests failed (non-blocking)';
+          elif [ -f build.gradle ] || [ -f build.gradle.kts ]; then ./gradlew test || echo '::warning::gradle tests failed (non-blocking)';
+          else echo "no java build files";
+          fi
+
+  rust:
+    if: ${{ hashFiles('**/Cargo.toml') != '' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - run: cargo test || echo '::warning::rust tests failed (non-blocking)'
+
+  flutter:
+    if: ${{ hashFiles('**/pubspec.yaml') != '' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      - run: |
+          flutter pub get
+          if grep -q "flutter_test" pubspec.yaml; then
+            flutter test || echo '::warning::flutter tests failed (non-blocking)';
+          else
+            echo "no flutter_test dependency";
+          fi

@@ -1,18 +1,40 @@
-name: CI (scaffold)
+name: CI
 
 on:
   pull_request:
     branches: [ main, master ]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  scaffold:
+  build:
     if: github.repository == 'geminimir/stripemeter'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Environment info
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Test
+        run: pnpm run --if-present test
+      - name: Collect artifacts
+        if: always()
         run: |
-          echo "CI scaffold running at 2025-08-22T11:07:43.790283+00:00"
-          which node && node -v || true
-          which python3 && python3 --version || true
-          echo "Ready to wire real build/tests once maintainers confirm commands."
+          mkdir -p artifacts
+          [ -d coverage ] && cp -r coverage artifacts/ || true
+          [ -d junit ] && cp -r junit artifacts/ || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-artifacts
+          path: artifacts
+          if-no-files-found: ignore

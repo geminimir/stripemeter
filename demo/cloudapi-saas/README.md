@@ -141,6 +141,20 @@ Expected:
 - Blocked: requests return 402 Payment Required
 - After resolve: requests succeed normally
 
+### **Credits Lifecycle (Entitlements)**
+- Issues credits (e.g., 50k API calls), burns FIFO by usage, handles expiry and optional rollover
+- Shows remaining, burned, expired, rolled credits, and overage beyond credits
+
+#### Run the Credits Demo
+```bash
+cd demo/cloudapi-saas
+node scripts/credits-lifecycle.js --user alice --days 40 --dailyCalls 1500
+```
+Expected:
+- Report prints grants, window, totals
+- Burned first until credits exhausted; any remainder is overage
+- Rollover grants extend validity; non-rollover expire
+
 ### **Customer Portal**
 - **Usage dashboard** with charts and metrics
 - **Cost projections** based on current usage

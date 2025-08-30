@@ -9,7 +9,8 @@
     "seed": "node scripts/seed-demo-data.js",
     "simulate": "node scripts/usage-simulator.js",
     "dunning": "node scripts/dunning-lab.js --user alice --speed 1",
-    "mixed-cadence": "node scripts/mixed-cadence.js --user alice --days 20 --dailyCalls 500"
+    "mixed-cadence": "node scripts/mixed-cadence.js --user alice --days 20 --dailyCalls 500",
+    "credits": "node scripts/credits-lifecycle.js --user alice --days 40 --dailyCalls 1500"
   },
   "keywords": [
     "stripemeter",

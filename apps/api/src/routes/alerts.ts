@@ -55,7 +55,6 @@ export const alertsRoutes: FastifyPluginAsync = async (server) => {
   }, async (request, reply) => {
     if (!requireTenantMatch(request, reply, request.query.tenantId)) return;
     // TODO: Implement alert retrieval from database
-    const _tenantId = getTenantId(request);
     reply.send([]);
   });
 
@@ -109,6 +108,7 @@ export const alertsRoutes: FastifyPluginAsync = async (server) => {
     const alertConfig: AlertConfig = {
       id: `alert_${Date.now()}`,
       ...request.body,
+      tenantId,
     };
     reply.status(201).send(alertConfig);
   });
@@ -234,7 +234,6 @@ export const alertsRoutes: FastifyPluginAsync = async (server) => {
   }, async (request, reply) => {
     if (!requireTenantMatch(request, reply, request.query.tenantId)) return;
     // TODO: Implement alert history retrieval
-    const _tenantId = getTenantId(request);
     reply.send([]);
   });
 };

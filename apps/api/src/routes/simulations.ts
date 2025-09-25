@@ -49,19 +49,29 @@ const BatchRunSchema = z.object({
   scenarioIds: z.array(z.string().uuid()).min(1),
 });
 
-// Create simulation queue
-const simulationQueue = new Queue('simulations', {
-  connection: redis,
-  defaultJobOptions: {
-    removeOnComplete: 100,
-    removeOnFail: 1000,
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 2000,
+// Create simulation queue (use noop queue in tests if redis is unavailable)
+const createQueue = () => {
+  const isTest = process.env.NODE_ENV === 'test';
+  if (isTest && !process.env.USE_REDIS_IN_TEST) {
+    return {
+      add: async () => ({}),
+      addBulk: async () => ({}),
+    } as unknown as Queue;
+  }
+  return new Queue('simulations', {
+    connection: redis,
+    defaultJobOptions: {
+      removeOnComplete: 100,
+      removeOnFail: 1000,
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 2000,
+      },
     },
-  },
-});
+  });
+};
+const simulationQueue = createQueue();
 
 export const simulationRoutes: FastifyPluginAsync = async (server) => {
   // Get tenant ID from request context (would be set by auth middleware)

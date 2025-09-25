@@ -16,6 +16,7 @@ describe('Simulation API E2E Tests', () => {
   const createdRunIds: string[] = [];
 
   beforeAll(async () => {
+    process.env.BYPASS_AUTH = '1';
     server = await buildServer();
     await server.ready();
   });

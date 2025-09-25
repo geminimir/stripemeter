@@ -10,6 +10,7 @@ describe('Usage API', () => {
   let server: FastifyInstance;
 
   beforeAll(async () => {
+    process.env.BYPASS_AUTH = '1';
     server = await buildServer();
     await server.ready();
   });

@@ -4,6 +4,7 @@
 
 import { FastifyPluginAsync } from 'fastify';
 import type { AlertConfig } from '@stripemeter/core';
+import { getTenantId, requireTenantMatch, requireScopes } from '../utils/auth';
 
 export const alertsRoutes: FastifyPluginAsync = async (server) => {
   /**
@@ -50,8 +51,11 @@ export const alertsRoutes: FastifyPluginAsync = async (server) => {
         },
       },
     },
-  }, async (_request, reply) => {
+    preHandler: [requireScopes(['alerts:read'])],
+  }, async (request, reply) => {
+    if (!requireTenantMatch(request, reply, request.query.tenantId)) return;
     // TODO: Implement alert retrieval from database
+    const _tenantId = getTenantId(request);
     reply.send([]);
   });
 
@@ -97,7 +101,10 @@ export const alertsRoutes: FastifyPluginAsync = async (server) => {
         },
       },
     },
+    preHandler: [requireScopes(['alerts:write'])],
   }, async (request, reply) => {
+    if (!requireTenantMatch(request, reply, (request.body as any).tenantId)) return;
+    const tenantId = getTenantId(request);
     // TODO: Implement alert creation
     const alertConfig: AlertConfig = {
       id: `alert_${Date.now()}`,
@@ -135,6 +142,7 @@ export const alertsRoutes: FastifyPluginAsync = async (server) => {
         },
       },
     },
+    preHandler: [requireScopes(['alerts:write'])],
   }, async (_request, reply) => {
     // TODO: Implement alert update
     reply.status(501).send({ 
@@ -166,6 +174,7 @@ export const alertsRoutes: FastifyPluginAsync = async (server) => {
         },
       },
     },
+    preHandler: [requireScopes(['alerts:write'])],
   }, async (_request, reply) => {
     // TODO: Implement alert deletion
     reply.status(204).send();
@@ -221,8 +230,11 @@ export const alertsRoutes: FastifyPluginAsync = async (server) => {
         },
       },
     },
-  }, async (_request, reply) => {
+    preHandler: [requireScopes(['alerts:read'])],
+  }, async (request, reply) => {
+    if (!requireTenantMatch(request, reply, request.query.tenantId)) return;
     // TODO: Implement alert history retrieval
+    const _tenantId = getTenantId(request);
     reply.send([]);
   });
 };

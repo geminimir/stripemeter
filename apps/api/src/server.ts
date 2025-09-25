@@ -70,6 +70,21 @@ export async function buildServer() {
       schemes: ['http', 'https'],
       consumes: ['application/json'],
       produces: ['application/json'],
+      securityDefinitions: {
+        ApiKeyAuth: {
+          type: 'apiKey',
+          name: 'X-API-Key',
+          in: 'header',
+          description: 'Provide API key as X-API-Key header or Authorization: Bearer <apiKey>',
+        },
+        BearerApiKey: {
+          type: 'apiKey',
+          name: 'Authorization',
+          in: 'header',
+          description: 'Authorization: Bearer <apiKey>'
+        }
+      },
+      security: [{ ApiKeyAuth: [] }],
       tags: [
         { name: 'health', description: 'Health check endpoints' },
         { name: 'events', description: 'Usage event ingestion' },
@@ -92,10 +107,17 @@ export async function buildServer() {
     transformSpecificationClone: true,
   });
 
+  // Expose raw OpenAPI JSON at /json for tests and tooling
+  server.get('/json', async (_request, reply) => {
+    // @ts-ignore - fastify-swagger decorates instance with swagger()
+    const spec = server.swagger();
+    reply.send(spec);
+  });
+
   // Register routes
   await server.register(healthRoutes, { prefix: '/health' });
   await server.register(metricsRoutes, { prefix: '/metrics' });
-  // Require API key for v1 routes except health/docs
+  // Require API key for v1 routes except health/docs (skip when BYPASS_AUTH=1)
   server.addHook('onRequest', async (request, reply) => {
     const bypass = process.env.BYPASS_AUTH === '1';
     if (bypass) return;
@@ -121,7 +143,7 @@ export async function buildServer() {
   await server.register(adminRoutes, { prefix: '/v1/admin' });
 
   // Test-only database cleanup for deterministic results
-  if (process.env.NODE_ENV === 'test') {
+  if (process.env.NODE_ENV === 'test' && process.env.USE_DB_IN_TEST === '1') {
     try {
       const { db, events, simulationRuns, simulationScenarios, simulationBatches } = await import('@stripemeter/database');
       // Order matters due to FKs

@@ -43,6 +43,28 @@ export const ingestLatencyMs = new Histogram({
   buckets: [5, 10, 25, 50, 100, 250, 500, 1000, 2500],
 });
 
+// AuthN/AuthZ metrics
+export const authFailTotal = new Counter({
+  name: 'auth_fail_total',
+  help: 'Total number of authentication failures',
+  registers: [registry],
+  labelNames: ['reason'] as const,
+});
+
+export const crossTenantBlockTotal = new Counter({
+  name: 'cross_tenant_block_total',
+  help: 'Total number of cross-tenant access blocks',
+  registers: [registry],
+  labelNames: ['method', 'route'] as const,
+});
+
+export const scopeDenyTotal = new Counter({
+  name: 'scope_deny_total',
+  help: 'Total number of scope denials',
+  registers: [registry],
+  labelNames: ['method', 'route', 'scope'] as const,
+});
+
 type MetricsRequest = FastifyRequest & { __metricsStartHr?: bigint };
 
 export function registerHttpMetricsHooks(server: FastifyInstance): void {

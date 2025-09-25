@@ -7,6 +7,7 @@ import type { ReconciliationSummaryResponse } from '@stripemeter/core';
 import { db, priceMappings, reconciliationReports } from '@stripemeter/database';
 import { and, eq, gte, lte, sql } from 'drizzle-orm';
 import http from 'http';
+import { getTenantId, requireTenantMatch, requireScopes } from '../utils/auth';
 
 export const reconciliationRoutes: FastifyPluginAsync = async (server) => {
   /**
@@ -89,9 +90,12 @@ export const reconciliationRoutes: FastifyPluginAsync = async (server) => {
         },
       },
     },
+    preHandler: [requireScopes(['reconciliation:read'])],
   }, async (request, reply) => {
+    if (!requireTenantMatch(request, reply, request.query.tenantId)) return;
     const { period } = request.params;
-    const { tenantId, format } = request.query as any;
+    const { format } = request.query as any;
+    const tenantId = getTenantId(request);
 
     try {
       const rows = await db
@@ -195,6 +199,7 @@ export const reconciliationRoutes: FastifyPluginAsync = async (server) => {
         },
       },
     },
+    preHandler: [requireScopes(['reconciliation:write'])],
   }, async (_request, reply) => {
     try {
       const port = Number(process.env.WORKER_HTTP_PORT || 3100);
@@ -282,8 +287,11 @@ export const reconciliationRoutes: FastifyPluginAsync = async (server) => {
         },
       },
     },
+    preHandler: [requireScopes(['reconciliation:read'])],
   }, async (request, reply) => {
-    const { tenantId, periodStart, periodEnd, format } = request.query as any;
+    if (!requireTenantMatch(request, reply, (request.query as any).tenantId)) return;
+    const { periodStart, periodEnd, format } = request.query as any;
+    const tenantId = getTenantId(request);
 
     // Basic validation: ensure periodStart <= periodEnd
     if (periodEnd < periodStart) {

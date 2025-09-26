@@ -165,9 +165,16 @@ export class ReconcilerWorker {
       // Calculate local total across all customers
       const localTotal = countersList.reduce((sum: number, c: any) => sum + parseFloat(c.total), 0);
 
-      // Get Stripe reported usage
-      const stripeUsage = await this.getStripeUsage(subscriptionItemId, periodStart, stripeAccount);
-      const stripeTotal = stripeUsage.total_usage || 0;
+      // Get Stripe reported usage or use fake mode for quickstart
+      let stripeTotal: number;
+      const useFake = process.env.RECONCILIATION_FAKE === '1';
+      if (useFake) {
+        const driftPct = Math.max(0, Math.min(1, Number(process.env.RECONCILIATION_FAKE_DRIFT_PCT || '0.02')));
+        stripeTotal = Math.max(0, Number((localTotal * (1 - driftPct)).toFixed(6)));
+      } else {
+        const stripeUsage = await this.getStripeUsage(subscriptionItemId, periodStart, stripeAccount);
+        stripeTotal = stripeUsage.total_usage || 0;
+      }
 
       // Calculate difference
       const diff = Math.abs(localTotal - stripeTotal);

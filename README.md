@@ -27,6 +27,30 @@ See [v0.4.0 Release Notes](docs/RELEASE_NOTES_v0.4.0.md) and [Operator Runbook](
 
 ---
 
+### 10-minute Quickstart (one-shot) → Drift report
+
+```bash
+# One-time: clone
+git clone https://github.com/geminimir/stripemeter && cd stripemeter
+
+# Bring up full stack (API + Workers + DB + Redis) and run demo emitter
+docker compose -f docker-compose.quickstart.yml up -d --build
+
+# The demo container will emit usage, trigger reconciliation, and write:
+#   examples/demo-emitter/output/drift_report.csv
+# On macOS:
+open examples/demo-emitter/output/drift_report.csv || echo "See examples/demo-emitter/output/drift_report.csv"
+```
+
+Notes:
+- This uses an env-guarded fake reconciliation mode to avoid Stripe setup. For real parity, see the Stripe Test Clocks demo below.
+- You can also run the emitter locally:
+
+```bash
+pnpm i -w && pnpm -r build && pnpm dev  # if running outside compose
+node examples/demo-emitter/index.js
+```
+
 ### Try in 5 minutes → Verify in 30 seconds
 
 ```bash

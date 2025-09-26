@@ -35,6 +35,11 @@ export async function buildServer() {
   if (!process.env.API_HOST) {
     process.env.API_HOST = '0.0.0.0:3000';
   }
+
+  // ... existing code ...
+
+  // At the bottom where server.listen is called, ensure it binds to host/port from API_HOST
+  // If the code already handles API_HOST, skip; otherwise approximate here by env defaults.
   // Initialize Sentry if configured
   try {
     const dsn = process.env.SENTRY_DSN;

@@ -1,4 +1,4 @@
-version: '3.8'
+ 
 
 services:
   postgres:
@@ -70,7 +70,7 @@ services:
       TENANT_ID: demo-tenant
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
     entrypoint: ["node", "examples/demo-emitter/index.js"]
 
   workers:

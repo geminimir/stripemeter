@@ -19,7 +19,7 @@ jobs:
         run: docker compose -f docker-compose.quickstart.yml up -d --build
       - name: Show compose logs (initial)
         run: docker compose -f docker-compose.quickstart.yml logs --no-color --tail=120 | sed -n '1,200p'
-      - name: Wait for API readiness
+      - name: Wait for API readiness (with logs)
         run: |
           for i in {1..120}; do
             if curl -fsS http://localhost:3000/health/ready > /dev/null; then exit 0; fi
@@ -28,6 +28,9 @@ jobs:
             sleep 2
           done
           echo "API not ready" && docker compose -f docker-compose.quickstart.yml logs --no-color --tail=200 | sed -n '1,400p' && exit 1
+      - name: Ensure migrate finished OK
+        run: |
+          docker compose -f docker-compose.quickstart.yml ps migrate | grep -q "Exit 0"
       - name: Run demo emitter
         run: node examples/demo-emitter/index.js
         env:

@@ -55,6 +55,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     command: ["node", "apps/api/dist/index.js"]
 
   demo:
@@ -92,7 +94,23 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     command: ["node", "apps/workers/dist/index.js"]
+
+  migrate:
+    image: node:20-alpine
+    container_name: stripemeter-migrate
+    working_dir: /work
+    restart: "no"
+    volumes:
+      - ./:/work
+    environment:
+      DATABASE_URL: postgres://stripemeter:stripemeter_dev@postgres:5432/stripemeter
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["sh", "-lc", "corepack enable && corepack prepare pnpm@8.15.1 --activate && pnpm i -w --prefer-offline --ignore-scripts && pnpm db:migrate"]
 
 volumes:
   postgres_data:

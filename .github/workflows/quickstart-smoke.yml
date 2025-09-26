@@ -17,13 +17,17 @@ jobs:
           node-version: 20
       - name: Build Docker images and bring up quickstart
         run: docker compose -f docker-compose.quickstart.yml up -d --build
+      - name: Show compose logs (initial)
+        run: docker compose -f docker-compose.quickstart.yml logs --no-color --tail=120 | sed -n '1,200p'
       - name: Wait for API readiness
         run: |
-          for i in {1..60}; do
+          for i in {1..120}; do
             if curl -fsS http://localhost:3000/health/ready > /dev/null; then exit 0; fi
-            sleep 1
+            docker compose -f docker-compose.quickstart.yml ps
+            docker compose -f docker-compose.quickstart.yml logs api --no-color --tail=50 | sed -n '1,120p'
+            sleep 2
           done
-          echo "API not ready" && exit 1
+          echo "API not ready" && docker compose -f docker-compose.quickstart.yml logs --no-color --tail=200 | sed -n '1,400p' && exit 1
       - name: Run demo emitter
         run: node examples/demo-emitter/index.js
         env:

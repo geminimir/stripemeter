@@ -31,6 +31,10 @@ export async function buildServer() {
   if (process.env.NODE_ENV === 'test' && process.env.BYPASS_AUTH === undefined) {
     process.env.BYPASS_AUTH = '1';
   }
+  // In containerized quickstart, default to 0.0.0.0 listen address
+  if (!process.env.API_HOST) {
+    process.env.API_HOST = '0.0.0.0:3000';
+  }
   // Initialize Sentry if configured
   try {
     const dsn = process.env.SENTRY_DSN;

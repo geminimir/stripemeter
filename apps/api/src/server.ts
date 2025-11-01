@@ -25,6 +25,7 @@ import { alertsRoutes } from './routes/alerts';
 import { simulationRoutes } from './routes/simulations';
 import { adminRoutes } from './routes/admin';
 import { persistAuditLog } from './utils/audit';
+import { alertStatesRoutes } from './routes/alert-states';
 
 export async function buildServer() {
   // Default to bypass auth in test environment unless explicitly disabled
@@ -118,6 +119,7 @@ export async function buildServer() {
         { name: 'mappings', description: 'Price mapping configuration' },
         { name: 'reconciliation', description: 'Reconciliation reports' },
         { name: 'alerts', description: 'Alert configuration' },
+        { name: 'alert-states', description: 'Alert states' },
         { name: 'simulations', description: 'Pricing simulation scenarios and runs' },
       ],
       securityDefinitions: {
@@ -182,6 +184,7 @@ export async function buildServer() {
     const { adjustmentsRoutes } = await import('./routes/adjustments');
     await instance.register(adjustmentsRoutes, { prefix: '/v1/adjustments' });
     await instance.register(alertsRoutes, { prefix: '/v1/alerts' });
+    await instance.register(alertStatesRoutes, { prefix: '/v1/alerts/states' });
     await instance.register(simulationRoutes, { prefix: '/v1/simulations' });
     await instance.register(adminRoutes, { prefix: '/v1/admin' });
   });

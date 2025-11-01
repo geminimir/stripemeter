@@ -86,6 +86,16 @@ export const apiAdjustmentsRevertedTotal = new Counter({
   labelNames: ['org'],
 });
 
+export const alertEventsIngestedTotal = new Counter({
+  name: 'alert_events_ingested_total',
+  help: 'Total number of alert events ingested',
+});
+
+export const alertStateTransitionsTotal = new Counter({
+  name: 'alert_state_transitions_total',
+  help: 'Total number of alert state transitions',
+});
+
 type MetricsRequest = FastifyRequest & { __metricsStartHr?: bigint };
 
 export function registerHttpMetricsHooks(server: FastifyInstance): void {

@@ -120,6 +120,23 @@ export const alertConfigSchema = z.object({
   enabled: z.boolean().default(true),
 });
 
+// Get Event List Query schema
+export const getAlertStatesQuerySchema = z.object({
+  tenantId: tenantIdSchema,
+  customerRef: z.string().min(1).max(255).optional(),
+  metric: z.string().min(1).max(100).optional(),
+  status: z.enum(['triggered', 'acknowledged', 'resolved']).optional(),
+  severity: z.enum(['info', 'warn', 'critical']).optional(),
+  title: z.string().min(1).optional(),
+  limit: z.number().int().min(1).max(100).optional().default(25),
+  offset: z.number().int().min(0).optional().default(0),
+  sort: z.enum(['customerRef', 'metric', 'createdAt']).optional().default('createdAt'),
+  sortDir: z.enum(['asc', 'desc']).optional().default('desc'),
+  startTime: isoDateTimeSchema.optional(),
+  endTime: isoDateTimeSchema.optional(),
+});
+
+
 // Type exports
 export type UsageEventInput = z.infer<typeof usageEventSchema>;
 export type GetUsageHistoryQueryInput = z.infer<typeof getUsageHistoryQuerySchema>;
@@ -130,3 +147,4 @@ export type BackfillRequestInput = z.infer<typeof backfillRequestSchema>;
 export type ProjectionRequestInput = z.infer<typeof projectionRequestSchema>;
 export type PriceMappingInput = z.infer<typeof priceMappingSchema>;
 export type AlertConfigInput = z.infer<typeof alertConfigSchema>;
+export type GetAlertStatesQueryInput = z.infer<typeof getAlertStatesQuerySchema>;

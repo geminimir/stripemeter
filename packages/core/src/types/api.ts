@@ -188,3 +188,24 @@ export interface ReconciliationSummaryResponse {
     items: number;
   };
 }
+
+export interface GetAlertStatesResponse {
+  total: number;
+  alertStates: Array<{
+    id: string;
+    tenantId: string;
+    customerRef: string;
+    metric: string;
+    alertConfigId: string;
+    status: string;
+    severity: number;
+    title: string;
+    description: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  errors?: Array<{
+    index: number;
+    error: string;
+  }>;
+}

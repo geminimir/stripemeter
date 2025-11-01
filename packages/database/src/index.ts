@@ -10,5 +10,6 @@ export * from './schema';
 
 // Repository exports
 export { EventsRepository } from './repositories/events.repository';
+export { AlertStatesRepository } from './repositories/alert-states.repository';
 export { BackfillRepository } from './repositories/backfill.repository';
 export { SimulationsRepository } from './repositories/simulations.repository';

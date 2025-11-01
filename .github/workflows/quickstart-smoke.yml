@@ -1,0 +1,47 @@
+name: Quickstart Smoke
+
+on:
+  push:
+    branches: [ quickstart/* ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build Docker images and bring up quickstart
+        run: docker compose -f docker-compose.quickstart.yml up -d --build
+      - name: Show compose logs (initial)
+        run: docker compose -f docker-compose.quickstart.yml logs --no-color --tail=120 | sed -n '1,200p'
+      - name: Wait for API readiness (with logs)
+        run: |
+          for i in {1..120}; do
+            if curl -fsS http://localhost:3000/health/ready > /dev/null; then exit 0; fi
+            docker compose -f docker-compose.quickstart.yml ps
+            docker compose -f docker-compose.quickstart.yml logs api --no-color --tail=50 | sed -n '1,120p'
+            sleep 2
+          done
+          echo "API not ready" && docker compose -f docker-compose.quickstart.yml logs --no-color --tail=200 | sed -n '1,400p' && exit 1
+      - name: Ensure migrate finished OK
+        run: |
+          docker compose -f docker-compose.quickstart.yml ps migrate | grep -q "Exit 0"
+      - name: Run demo emitter
+        run: node examples/demo-emitter/index.js
+        env:
+          API_URL: http://localhost:3000
+          TENANT_ID: ci-demo-tenant
+      - name: Check drift report
+        run: |
+          test -f examples/demo-emitter/output/drift_report.csv
+          head -n 1 examples/demo-emitter/output/drift_report.csv | grep -q "subscription_item_id,period,local,stripe,drift_abs,drift_pct,status"
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker-compose.quickstart.yml down -v
+
+

@@ -3,3 +3,4 @@ packages:
   - 'apps/*'
   - 'packages/replay-cli'
   - 'packages/ops-cli'
+  - 'examples/*'

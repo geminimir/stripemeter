@@ -1,0 +1,119 @@
+ 
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: stripemeter-postgres
+    environment:
+      POSTGRES_USER: stripemeter
+      POSTGRES_PASSWORD: stripemeter_dev
+      POSTGRES_DB: stripemeter
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stripemeter"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: stripemeter-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stripemeter-api
+    environment:
+      NODE_ENV: development
+      BYPASS_AUTH: "1"
+      DATABASE_URL: postgres://stripemeter:stripemeter_dev@postgres:5432/stripemeter
+      REDIS_URL: redis://redis:6379
+      WORKER_HTTP_HOST: workers
+      WORKER_HTTP_PORT: "3100"
+      # Enable fake reconciliation to avoid Stripe dependencies in quickstart
+      RECONCILIATION_FAKE: "1"
+      RECONCILIATION_FAKE_DRIFT_PCT: "0.02"
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: ["node", "apps/api/dist/index.js"]
+
+  demo:
+    image: node:20-alpine
+    container_name: stripemeter-demo
+    working_dir: /work
+    volumes:
+      - ./:/work
+    environment:
+      API_URL: http://api:3000
+      TENANT_ID: demo-tenant
+    depends_on:
+      api:
+        condition: service_healthy
+    entrypoint: ["node", "examples/demo-emitter/index.js"]
+
+  workers:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stripemeter-workers
+    environment:
+      NODE_ENV: development
+      BYPASS_AUTH: "1"
+      DATABASE_URL: postgres://stripemeter:stripemeter_dev@postgres:5432/stripemeter
+      REDIS_URL: redis://redis:6379
+      WORKER_HTTP_PORT: "3100"
+      # Fake recon settings mirrored here for clarity
+      RECONCILIATION_FAKE: "1"
+      RECONCILIATION_FAKE_DRIFT_PCT: "0.02"
+    expose:
+      - "3100"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: ["node", "apps/workers/dist/index.js"]
+
+  migrate:
+    image: node:20-alpine
+    container_name: stripemeter-migrate
+    working_dir: /work
+    restart: "no"
+    volumes:
+      - ./:/work
+    environment:
+      DATABASE_URL: postgres://stripemeter:stripemeter_dev@postgres:5432/stripemeter
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["sh", "-lc", "corepack enable && corepack prepare pnpm@8.15.1 --activate && pnpm i -w --prefer-offline --ignore-scripts && pnpm db:migrate"]
+
+volumes:
+  postgres_data:
+  redis_data:
+
+

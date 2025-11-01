@@ -107,6 +107,16 @@ describe('Reconciliation summary API', () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('text/csv');
   });
+
+  it('GET /v1/reconciliation/summary CSV has header', async () => {
+    const res = await server.inject({
+      method: 'GET',
+      url: '/v1/reconciliation/summary?tenantId=00000000-0000-0000-0000-000000000000&periodStart=2025-01&periodEnd=2025-01&format=csv',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/csv');
+    expect(res.body).toContain('metric,local,stripe,drift_abs,drift_pct,items');
+  });
 });
 
 

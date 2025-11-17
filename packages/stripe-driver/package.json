@@ -1,0 +1,22 @@
+{
+  "name": "@stripemeter/stripe-driver",
+  "version": "0.1.0",
+  "description": "Typed Stripe billing driver for StripeMeter (usage, meters, test clocks, invoices, credits)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "stripe": "^14.25.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.1",
+    "@types/node": "^20.11.0"
+  }
+}

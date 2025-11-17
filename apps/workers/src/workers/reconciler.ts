@@ -2,23 +2,20 @@
  * Reconciler Worker - Compares local usage with Stripe and identifies discrepancies
  */
 
-import Stripe from 'stripe';
 import { db, redis, priceMappings, reconciliationReports, counters, adjustments } from '@stripemeter/database';
 import { eq, and, sql } from 'drizzle-orm';
 import { logger } from '../utils/logger';
 import { reconRunsTotal, reconDurationSeconds, reconciliationDiffAbs, reconciliationDiffPct, workerRunningGauge } from '../utils/metrics';
 import { getCurrentPeriod, RECONCILIATION_EPSILON } from '@stripemeter/core';
+import { StripeBillingDriver, StripeBillingDriverImpl } from '@stripemeter/stripe-driver';
 
 export class ReconcilerWorker {
-  private stripe: Stripe;
+  private driver: StripeBillingDriver;
   private intervalId: NodeJS.Timeout | null = null;
   private isRunning = false;
 
-  constructor() {
-    this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-      apiVersion: '2023-10-16',
-      typescript: true,
-    });
+  constructor(driver?: StripeBillingDriver) {
+    this.driver = driver ?? new StripeBillingDriverImpl();
   }
 
   async start() {
@@ -166,8 +163,8 @@ export class ReconcilerWorker {
       const localTotal = countersList.reduce((sum: number, c: any) => sum + parseFloat(c.total), 0);
 
       // Get Stripe reported usage
-      const stripeUsage = await this.getStripeUsage(subscriptionItemId, periodStart, stripeAccount);
-      const stripeTotal = stripeUsage.total_usage || 0;
+      const summary = await this.driver.getUsageSummary(subscriptionItemId, periodStart, stripeAccount);
+      const stripeTotal = summary.totalUsage;
 
       // Calculate difference
       const diff = Math.abs(localTotal - stripeTotal);
@@ -233,71 +230,6 @@ export class ReconcilerWorker {
     }
 
     return reports;
-  }
-
-  private async getStripeUsage(
-    subscriptionItemId: string,
-    periodStart: string,
-    stripeAccount: string
-  ): Promise<Stripe.UsageRecordSummary> {
-    const headers = {
-      stripeAccount: stripeAccount !== 'default' ? stripeAccount : undefined,
-    } as const;
-
-    // Simple retry with exponential backoff for 429/5xx
-    const maxRetries = 3;
-    let attempt = 0;
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      try {
-        // Ensure item exists / accessible
-        await this.stripe.subscriptionItems.retrieve(subscriptionItemId, headers);
-
-        // List usage summaries; if Stripe returns multiple windows, sum total_usage
-        let startingAfter: string | undefined = undefined;
-        let totalUsage = 0;
-        // Paginate conservatively up to 5 pages
-        for (let i = 0; i < 5; i++) {
-          const resp: Stripe.ApiList<Stripe.UsageRecordSummary> = await this.stripe.subscriptionItems.listUsageRecordSummaries(
-            subscriptionItemId,
-            {
-              limit: 100,
-              starting_after: startingAfter,
-            },
-            headers
-          );
-          for (const s of resp.data) {
-            totalUsage += s.total_usage ?? 0;
-          }
-          if (!resp.has_more) break;
-          startingAfter = resp.data[resp.data.length - 1]?.id;
-        }
-
-        return {
-          id: '',
-          object: 'usage_record_summary',
-          invoice: null,
-          livemode: false,
-          period: {
-            start: Math.floor(new Date(periodStart).getTime() / 1000),
-            end: Math.floor(Date.now() / 1000),
-          },
-          subscription_item: subscriptionItemId,
-          total_usage: totalUsage,
-        } as Stripe.UsageRecordSummary;
-      } catch (error: any) {
-        const status = error?.statusCode || error?.status || 0;
-        const retryable = status === 429 || (status >= 500 && status < 600);
-        if (retryable && attempt < maxRetries) {
-          const delayMs = Math.pow(2, attempt) * 250;
-          await new Promise((r) => setTimeout(r, delayMs));
-          attempt += 1;
-          continue;
-        }
-        logger.error(`Failed to fetch Stripe usage for ${subscriptionItemId}:`, error);
-        throw error;
-      }
-    }
   }
 
   private async createSuggestedAdjustments(

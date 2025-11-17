@@ -2,7 +2,6 @@
  * Stripe Writer Worker - Pushes usage deltas to Stripe
  */
 
-import Stripe from 'stripe';
 import { db, redis, priceMappings, counters, writeLog } from '@stripemeter/database';
 import { eq, and } from 'drizzle-orm';
 import { logger } from '../utils/logger';
@@ -11,27 +10,17 @@ import { backOff } from 'exponential-backoff';
 import pLimit from 'p-limit';
 import { shadowUsagePostsTotal, shadowUsagePostFailuresTotal } from '../utils/metrics';
 import CircuitBreaker from 'opossum';
+import { StripeBillingDriver, StripeBillingDriverImpl, StripeEnvironment } from '@stripemeter/stripe-driver';
 
 export class StripeWriterWorker {
-  private stripeLive: Stripe;
-  private stripeTest: Stripe | null = null;
+  private driver: StripeBillingDriver;
   private intervalId: NodeJS.Timeout | null = null;
   private isRunning = false;
   private rateLimiter: Map<string, any> = new Map();
   private breakers: Map<string, CircuitBreaker<any, any>> = new Map();
 
-  constructor() {
-    this.stripeLive = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-      apiVersion: '2023-10-16',
-      typescript: true,
-    });
-    const testKey = process.env.STRIPE_TEST_SECRET_KEY || '';
-    if (testKey) {
-      this.stripeTest = new Stripe(testKey, {
-        apiVersion: '2023-10-16',
-        typescript: true,
-      });
-    }
+  constructor(driver?: StripeBillingDriver) {
+    this.driver = driver ?? new StripeBillingDriverImpl();
   }
 
   async start() {
@@ -167,13 +156,14 @@ export class StripeWriterWorker {
     }
 
     // Determine live vs shadow routing
-    const isShadow = shadow === true && !!this.stripeTest;
-    if (shadow === true && !this.stripeTest) {
+    const hasTestClient = !!process.env.STRIPE_TEST_SECRET_KEY;
+    const isShadow = shadow === true && hasTestClient;
+    if (shadow === true && !hasTestClient) {
       logger.warn('Shadow mode mapping detected but STRIPE_TEST_SECRET_KEY is not configured; skipping shadow push');
     }
-    const targetStripe = isShadow ? this.stripeTest! : this.stripeLive;
     const effectiveStripeAccount = isShadow ? (shadowStripeAccount || stripeAccount) : stripeAccount;
     const effectiveSubscriptionItemId = isShadow ? (shadowSubscriptionItemId || subscriptionItemId) : subscriptionItemId;
+    const mode: StripeEnvironment = isShadow ? 'test' : 'live';
 
     // Get previously pushed total (only for live mode; shadow should not affect write_log)
     const [writeLogRow] = await db
@@ -221,19 +211,14 @@ export class StripeWriterWorker {
       let breaker = this.breakers.get(breakerKey);
       if (!breaker) {
         breaker = new CircuitBreaker(async () => {
-          const deterministicTimestampSec = Math.floor(new Date(periodStart).getTime() / 1000);
-          const usageRecord = await targetStripe.subscriptionItems.createUsageRecord(
-            effectiveSubscriptionItemId!,
-            {
-              quantity: Math.round(localTotal),
-              timestamp: deterministicTimestampSec,
-              action: 'set',
-            },
-            {
-              idempotencyKey,
-              stripeAccount: effectiveStripeAccount !== 'default' ? effectiveStripeAccount : undefined,
-            }
-          );
+          const usageRecord = await this.driver.recordUsage({
+            mode,
+            stripeAccount: effectiveStripeAccount || 'default',
+            subscriptionItemId: effectiveSubscriptionItemId!,
+            quantity: localTotal,
+            periodStart,
+            idempotencyKey,
+          });
           return usageRecord;
         }, {
           timeout: Number(process.env.STRIPE_CB_TIMEOUT_MS || '10000'),

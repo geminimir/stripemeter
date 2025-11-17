@@ -39,13 +39,14 @@ export class StripeBillingDriverImpl implements StripeBillingDriver {
   private stripeLive: Stripe;
   private stripeTest: Stripe | null;
 
-  constructor(opts?: { liveKey?: string; testKey?: string; apiVersion?: string }) {
+  constructor(opts?: { liveKey?: string; testKey?: string }) {
     const liveKey = opts?.liveKey ?? process.env.STRIPE_SECRET_KEY ?? '';
     const testKey = opts?.testKey ?? process.env.STRIPE_TEST_SECRET_KEY ?? '';
-    const apiVersion = opts?.apiVersion ?? '2023-10-16';
 
-    this.stripeLive = new Stripe(liveKey, { apiVersion, typescript: true });
-    this.stripeTest = testKey ? new Stripe(testKey, { apiVersion, typescript: true }) : null;
+    this.stripeLive = new Stripe(liveKey, { apiVersion: '2023-10-16', typescript: true });
+    this.stripeTest = testKey
+      ? new Stripe(testKey, { apiVersion: '2023-10-16', typescript: true })
+      : null;
   }
 
   private clientForMode(mode: StripeEnvironment): Stripe {
